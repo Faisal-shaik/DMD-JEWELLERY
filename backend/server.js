@@ -93,6 +93,15 @@ app.get('/sitemap.xml', async (req, res) => {
   }
 });
 
+// Cloud Hosting Health Check Endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
