@@ -1,0 +1,186 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "D MUDDASSIR",
+      "email": "admin@dmdjewellery.com",
+      "password_hash": "$2a$10$Ml2DTPWrHwgkhTmFGgojouXQQV/E3Jc8V8PvYtoMtbSsDRWTPKnhu",
+      "role": "admin",
+      "created_at": "2026-10-04T10:11:25.093Z",
+      "updated_at": "2026-10-04T10:11:25.093Z"
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "Rings",
+      "description": "Exquisite gold and hallmark rings",
+      "status": "enabled",
+      "created_at": "2026-10-04T10:11:25.018Z",
+      "updated_at": "2026-10-04T13:41:28.406Z"
+    },
+    {
+      "id": 2,
+      "name": "Necklaces",
+      "description": "Exquisite gold and hallmark necklaces",
+      "status": "enabled",
+      "created_at": "2026-10-04T10:11:25.018Z",
+      "updated_at": "2026-10-04T10:11:25.018Z"
+    },
+    {
+      "id": 3,
+      "name": "Chains",
+      "description": "Exquisite gold and hallmark chains",
+      "status": "enabled",
+      "created_at": "2026-10-04T10:11:25.018Z",
+      "updated_at": "2026-10-04T10:11:25.018Z"
+    },
+    {
+      "id": 4,
+      "name": "Bangles",
+      "description": "Exquisite gold and hallmark bangles",
+      "status": "enabled",
+      "created_at": "2026-10-04T10:11:25.018Z",
+      "updated_at": "2026-10-04T10:11:25.018Z"
+    },
+    {
+      "id": 5,
+      "name": "Earrings",
+      "description": "Exquisite gold and hallmark earrings",
+      "status": "enabled",
+      "created_at": "2026-10-04T10:11:25.018Z",
+      "updated_at": "2026-10-04T10:11:25.018Z"
+    },
+    {
+      "id": 6,
+      "name": "Pendants",
+      "description": "Exquisite gold and hallmark pendants",
+      "status": "enabled",
+      "created_at": "2026-10-04T10:11:25.018Z",
+      "updated_at": "2026-10-04T10:11:25.018Z"
+    },
+    {
+      "id": 7,
+      "name": "Bridal Jewellery",
+      "description": "Exquisite gold and hallmark bridal jewellery",
+      "status": "enabled",
+      "created_at": "2026-10-04T10:11:25.018Z",
+      "updated_at": "2026-10-04T10:11:25.018Z"
+    },
+    {
+      "id": 8,
+      "name": "Antique Jewellery",
+      "description": "Exquisite gold and hallmark antique jewellery",
+      "status": "enabled",
+      "created_at": "2026-10-04T10:11:25.018Z",
+      "updated_at": "2026-10-04T10:11:25.018Z"
+    }
+  ],
+  "products": [
+    {
+      "id": 1,
+      "product_code": "DMD-JWL-0001",
+      "name": "chain",
+      "category_id": 3,
+      "price": 50000,
+      "purity": "24K",
+      "weight": 0,
+      "description": "",
+      "availability": "In Stock",
+      "featured": 0,
+      "status": "Published",
+      "created_at": "2026-10-04T11:11:41.230Z",
+      "updated_at": "2026-10-04T11:13:09.916Z"
+    }
+  ],
+  "product_images": [
+    {
+      "id": 1,
+      "product_id": 1,
+      "image_url": "/uploads/dmd-1791112301221-93950151.jpeg",
+      "is_primary": 1,
+      "display_order": 0,
+      "created_at": "2026-10-04T11:11:41.233Z"
+    }
+  ],
+  "gold_rates": [
+    {
+      "id": 1,
+      "purity": "24K",
+      "rate": 147550,
+      "unit": "10 grams",
+      "updated_at": "2026-10-04T14:25:49.222Z"
+    },
+    {
+      "id": 2,
+      "purity": "22K",
+      "rate": 135250,
+      "unit": "10 grams",
+      "updated_at": "2026-10-04T14:25:49.222Z"
+    },
+    {
+      "id": 3,
+      "purity": "18K",
+      "rate": 110660,
+      "unit": "10 grams",
+      "updated_at": "2026-10-04T14:25:49.223Z"
+    }
+  ],
+  "enquiries": [
+    {
+      "id": 1,
+      "customer_name": "D.Md.Usama Devanakonda",
+      "phone": "09642918411",
+      "email": null,
+      "product_id": null,
+      "message": "Where you shop is located..",
+      "status": "New",
+      "created_at": "2026-10-04T11:08:35.435Z",
+      "updated_at": "2026-10-04T11:08:35.435Z"
+    },
+    {
+      "id": 2,
+      "customer_name": "D.Md.Usama Devanakonda",
+      "phone": "09642918411",
+      "email": "devanakondamohammadusama@gmail.com",
+      "product_id": 2,
+      "message": "Hello DMD Jewellery, I am interested in Necklace (Code: DMD-JWL-0002). Please share more details and final pricing.",
+      "status": "New",
+      "created_at": "2026-10-04T12:00:52.307Z",
+      "updated_at": "2026-10-04T12:00:52.307Z"
+    }
+  ],
+  "shop_settings": [
+    {
+      "id": 1,
+      "business_name": "DMD JEWELLERYS",
+      "phone": "+91 9010322685",
+      "whatsapp": "9010322685",
+      "email": "",
+      "address": "SHARAF BAZAR YEMMIGANUR, KURNOOL DIST",
+      "city": "Yemmiganur",
+      "state": "Andhra Pradesh",
+      "pincode": "518360",
+      "maps_url": "https://www.google.com/maps/search/?api=1&query=SHARAF+BAZAR+YEMMIGANUR+518360+KURNOOL+DIST",
+      "opening_time": "10:00 AM",
+      "closing_time": "08:30 PM",
+      "holiday": "Saturday (Half Day)",
+      "about_text": "DMD JEWELLERYS, owned by D MUDDASSIR, offers timeless elegance with beautifully crafted gold, diamond, and silver jewellery. Located at Sharaf Bazar Yemmiganur, Kurnool Dist. Built on 100% purity, finest craftsmanship, and customer trust.",
+      "logo_url": "/dmd_logo.jpg",
+      "created_at": "2026-10-04T10:11:25.018Z",
+      "updated_at": "2026-10-04T10:14:40.000Z"
+    }
+  ],
+  "social_links": [],
+  "counters": {
+    "users": 1,
+    "categories": 8,
+    "products": 3,
+    "product_images": 3,
+    "gold_rates": 3,
+    "enquiries": 2,
+    "shop_settings": 1,
+    "social_links": 0
+  },
+  "is_seeded": true
+}
