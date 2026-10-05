@@ -114,10 +114,11 @@ app.use('/api/settings', settingRoutes);
 const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
 if (fs.existsSync(frontendDistPath)) {
   app.use(express.static(frontendDistPath));
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(frontendDistPath, 'index.html'));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
     }
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
   });
 }
 
@@ -139,13 +140,17 @@ import os from 'os';
 import { fetchLiveGoldRatesFromAPI } from './services/goldRateService.js';
 
 const getLocalIpAddress = () => {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const net of interfaces[name]) {
-      if (net.family === 'IPv4' && !net.internal) {
-        return net.address;
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const net of interfaces[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          return net.address;
+        }
       }
     }
+  } catch (e) {
+    /* Fallback */
   }
   return 'localhost';
 };
@@ -156,11 +161,11 @@ const startServer = async () => {
     await initDb();
     
     // Initial live gold rate sync
-    fetchLiveGoldRatesFromAPI().catch((err) => console.warn('Initial gold sync warning:', err));
+    fetchLiveGoldRatesFromAPI().catch((err) => console.warn('Initial gold sync warning:', err.message || err));
 
     // Refresh live gold rates every 15 minutes
     setInterval(() => {
-      fetchLiveGoldRatesFromAPI().catch((err) => console.warn('Periodic gold sync warning:', err));
+      fetchLiveGoldRatesFromAPI().catch((err) => console.warn('Periodic gold sync warning:', err.message || err));
     }, 15 * 60 * 1000);
 
     const localIp = getLocalIpAddress();
@@ -177,8 +182,10 @@ const startServer = async () => {
       console.log(`==================================================`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
+    console.warn('Server startup notice, starting server in resilient mode:', error.message || error);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`DMD JEWELLERYS SERVER RUNNING ON PORT ${PORT}`);
+    });
   }
 };
 

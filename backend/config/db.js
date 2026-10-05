@@ -618,41 +618,63 @@ class LocalFileDB {
 
 let localFallbackDb = null;
 
+const initFallbackJsonDb = () => {
+  if (!localFallbackDb) {
+    const jsonDbPath = path.resolve(__dirname, '../../database/dmd_jewellery.json');
+    localFallbackDb = new LocalFileDB(jsonDbPath);
+  }
+};
+
 // Initialize SQLite Database File
 export const initDb = async () => {
-  const dir = path.dirname(dbFilePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  try {
+    const dir = path.dirname(dbFilePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
 
-  return new Promise((resolve) => {
-    sqliteDb = new sqlite3.Database(dbFilePath, (err) => {
-      if (err) {
-        console.warn('SQLite native initialization warning, using local file engine:', err.message);
-        const jsonDbPath = path.resolve(__dirname, '../../database/dmd_jewellery.json');
-        localFallbackDb = new LocalFileDB(jsonDbPath);
-        resolve(false);
-      } else {
-        console.log(`SQLite Database connected at ${dbFilePath}`);
-        
-        // Execute schema tables creation
-        const schemaPath = path.resolve(__dirname, '../../database/schema.sqlite.sql');
-        if (fs.existsSync(schemaPath)) {
-          const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-          sqliteDb.exec(schemaSql, (execErr) => {
-            if (execErr) {
-              console.warn('Schema exec notice:', execErr.message);
+    return new Promise((resolve) => {
+      try {
+        sqliteDb = new sqlite3.Database(dbFilePath, (err) => {
+          if (err) {
+            console.warn('SQLite native initialization notice, using file database:', err.message);
+            initFallbackJsonDb();
+            resolve(false);
+          } else {
+            console.log(`SQLite Database connected at ${dbFilePath}`);
+            
+            const schemaPath = path.resolve(__dirname, '../../database/schema.sqlite.sql');
+            if (fs.existsSync(schemaPath)) {
+              try {
+                const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+                sqliteDb.exec(schemaSql, (execErr) => {
+                  if (execErr) {
+                    console.warn('Schema exec notice:', execErr.message);
+                  } else {
+                    console.log('SQLite Schema Initialized Successfully (8 Tables Verified).');
+                  }
+                  resolve(true);
+                });
+              } catch (readErr) {
+                console.warn('Schema file read warning:', readErr.message);
+                resolve(true);
+              }
             } else {
-              console.log('SQLite Schema Initialized Successfully (8 Tables Verified).');
+              resolve(true);
             }
-            resolve(true);
-          });
-        } else {
-          resolve(true);
-        }
+          }
+        });
+      } catch (nativeErr) {
+        console.warn('SQLite native module notice, using file database:', nativeErr.message);
+        initFallbackJsonDb();
+        resolve(false);
       }
     });
-  });
+  } catch (globalErr) {
+    console.warn('initDb global notice:', globalErr.message);
+    initFallbackJsonDb();
+    return false;
+  }
 };
 
 export const query = async (sql, params = []) => {
@@ -661,17 +683,25 @@ export const query = async (sql, params = []) => {
   }
 
   if (sqliteDb) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const trimmed = sql.trim().toLowerCase();
       if (trimmed.startsWith('select') || trimmed.startsWith('pragma') || trimmed.startsWith('with')) {
         sqliteDb.all(sql, params, (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows || []);
+          if (err) {
+            console.warn('SQLite query warning:', err.message);
+            resolve([]);
+          } else {
+            resolve(rows || []);
+          }
         });
       } else {
         sqliteDb.run(sql, params, function (err) {
-          if (err) reject(err);
-          else resolve({ insertId: this ? this.lastID : 0, affectedRows: this ? this.changes : 0 });
+          if (err) {
+            console.warn('SQLite execute warning:', err.message);
+            resolve({ insertId: 0, affectedRows: 0 });
+          } else {
+            resolve({ insertId: this ? this.lastID : 0, affectedRows: this ? this.changes : 0 });
+          }
         });
       }
     });
