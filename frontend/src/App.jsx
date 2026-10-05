@@ -14,6 +14,7 @@ import Categories from './pages/Categories';
 import About from './pages/About';
 import Contact from './pages/Contact';
 import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 import InstallPWAPrompt from './components/InstallPWAPrompt';
 import PWAUpdateToast from './components/PWAUpdateToast';
 

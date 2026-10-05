@@ -2,6 +2,7 @@ import { query, queryOne } from '../config/db.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { uploadImageToCloudinary, deleteImageFromCloudinary } from '../services/cloudinaryService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -257,7 +258,7 @@ export const createProduct = async (req, res) => {
     if (req.files && req.files.length > 0) {
       for (let i = 0; i < req.files.length; i++) {
         const file = req.files[i];
-        const imageUrl = `/uploads/${file.filename}`;
+        const imageUrl = await uploadImageToCloudinary(file);
         const isPrimary = i === 0 ? 1 : 0;
         await query(
           'INSERT INTO product_images (product_id, image_url, is_primary, display_order) VALUES (?, ?, ?, ?)',
@@ -338,7 +339,7 @@ export const updateProduct = async (req, res) => {
 
       for (let i = 0; i < req.files.length; i++) {
         const file = req.files[i];
-        const imageUrl = `/uploads/${file.filename}`;
+        const imageUrl = await uploadImageToCloudinary(file);
         const isPrimary = !hasPrimary && i === 0 ? 1 : 0;
         await query(
           'INSERT INTO product_images (product_id, image_url, is_primary, display_order) VALUES (?, ?, ?, ?)',
@@ -441,7 +442,7 @@ export const uploadProductImages = async (req, res) => {
     const inserted = [];
     for (let i = 0; i < req.files.length; i++) {
       const file = req.files[i];
-      const imageUrl = `/uploads/${file.filename}`;
+      const imageUrl = await uploadImageToCloudinary(file);
       const isPrimary = !hasPrimary && i === 0 ? 1 : 0;
       const resVal = await query(
         'INSERT INTO product_images (product_id, image_url, is_primary, display_order) VALUES (?, ?, ?, ?)',
@@ -476,6 +477,8 @@ export const deleteProductImage = async (req, res) => {
           console.warn('Failed to delete file:', localPath);
         }
       }
+    } else if (image.image_url.includes('res.cloudinary.com')) {
+      await deleteImageFromCloudinary(image.image_url);
     }
 
     await query('DELETE FROM product_images WHERE id = ?', [id]);

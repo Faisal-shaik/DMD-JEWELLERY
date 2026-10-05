@@ -642,7 +642,7 @@ let localDb = null;
 
 export const initDb = async () => {
   if (dbType === 'mysql') {
-    console.log('Connecting to MySQL database...');
+    console.log(`Connecting to MySQL database at ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306}...`);
     mysqlPool = mysql.createPool({
       host: process.env.DB_HOST || 'localhost',
       port: Number(process.env.DB_PORT) || 3306,
@@ -653,7 +653,13 @@ export const initDb = async () => {
       connectionLimit: 10,
       queueLimit: 0,
     });
-    console.log('MySQL Database ready.');
+    try {
+      const connection = await mysqlPool.getConnection();
+      console.log('MySQL Database connected successfully.');
+      connection.release();
+    } catch (err) {
+      console.error('MySQL Database Connection Error:', err.message || 'Unable to connect to MySQL database.');
+    }
   } else {
     console.log('Using Local Pure-JS Database (Zero Native Dependencies)...');
     const dbFilePath = path.resolve(__dirname, '../../database/dmd_jewellery.json');
