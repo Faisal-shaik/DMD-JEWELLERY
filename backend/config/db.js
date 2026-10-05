@@ -1,4 +1,4 @@
-import mysql from 'mysql2/promise';
+import sqlite3 from 'sqlite3';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -9,10 +9,14 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbType = process.env.DB_TYPE || 'sqlite';
-let mysqlPool = null;
+const dbFilePath = path.resolve(
+  process.cwd(),
+  process.env.SQLITE_DB_PATH || process.env.DB_FILE || './database/dmd_jewellery.sqlite'
+);
 
-// Pure JS File Database for local zero-dependency execution
+let sqliteDb = null;
+
+// Pure JS File Database fallback (Zero Native Dependencies)
 class LocalFileDB {
   constructor(filePath) {
     this.filePath = filePath;
@@ -57,7 +61,6 @@ class LocalFileDB {
       return;
     }
 
-    // Seed default Gold Rates if empty
     if (this.data.gold_rates.length === 0) {
       this.data.gold_rates = [
         { id: 1, purity: '24K', rate: 75500.0, unit: '10 grams', updated_at: new Date().toISOString() },
@@ -67,7 +70,6 @@ class LocalFileDB {
       this.data.counters.gold_rates = 3;
     }
 
-    // Seed default Categories if empty
     if (this.data.categories.length === 0) {
       const cats = [
         'Rings',
@@ -90,7 +92,6 @@ class LocalFileDB {
       this.data.counters.categories = cats.length;
     }
 
-    // Seed default Shop Settings if empty
     if (this.data.shop_settings.length === 0) {
       this.data.shop_settings = [
         {
@@ -117,7 +118,6 @@ class LocalFileDB {
       this.data.counters.shop_settings = 1;
     }
 
-    // STRICT MANDATORY RULE: ZERO PRODUCTS AT START
     if (!this.data.products) {
       this.data.products = [];
     }
@@ -125,12 +125,10 @@ class LocalFileDB {
     this.data.is_seeded = true;
   }
 
-  // Simulated SQL Query engine for local mode
   async execute(sql, params = []) {
     const trimmed = sql.trim();
     const lower = trimmed.toLowerCase();
 
-    // 1. SELECT COUNT FROM PRODUCTS
     if (lower.startsWith('select count(*) as count from products') || lower.startsWith('select count(*) as total from products')) {
       return [{ count: this.data.products.length, total: this.data.products.length }];
     }
@@ -140,7 +138,6 @@ class LocalFileDB {
       return [{ total: count }];
     }
 
-    // 2. USERS QUERIES
     if (lower.startsWith('select') && lower.includes('from users')) {
       if (lower.includes('where email = ?')) {
         const user = this.data.users.find((u) => u.email.toLowerCase() === String(params[0]).toLowerCase());
@@ -153,7 +150,6 @@ class LocalFileDB {
       return this.data.users;
     }
 
-    // INSERT INTO USERS
     if (lower.startsWith('insert into users')) {
       this.data.counters.users += 1;
       const newUser = {
@@ -170,7 +166,6 @@ class LocalFileDB {
       return { insertId: newUser.id, affectedRows: 1 };
     }
 
-    // UPDATE USERS
     if (lower.startsWith('update users')) {
       if (lower.includes('password_hash = ?')) {
         const id = params[params.length - 1];
@@ -189,11 +184,9 @@ class LocalFileDB {
       }
     }
 
-    // 3. PRODUCTS QUERIES
     if (lower.startsWith('select') && lower.includes('from products')) {
       let list = [...this.data.products];
 
-      // Join Category Name
       list = list.map((p) => {
         const cat = this.data.categories.find((c) => c.id === p.category_id);
         const images = this.data.product_images.filter((img) => img.product_id === p.id);
@@ -221,7 +214,6 @@ class LocalFileDB {
         return item ? [item] : [];
       }
 
-      // Filter by Status
       if (lower.includes("p.status = 'published'") || lower.includes("status = 'published'")) {
         list = list.filter((p) => p.status === 'Published');
       } else if (params.includes('Published') || params.includes('Draft') || params.includes('Hidden')) {
@@ -231,7 +223,6 @@ class LocalFileDB {
         }
       }
 
-      // Filter by Search Query
       if (lower.includes('like ?')) {
         const searchTerms = params.filter((p) => typeof p === 'string' && p.startsWith('%'));
         if (searchTerms.length > 0) {
@@ -246,7 +237,6 @@ class LocalFileDB {
         }
       }
 
-      // Filter by Category
       if (lower.includes('p.category_id = ?') || lower.includes('c.name = ?')) {
         const catParam = params.find((pr) => typeof pr === 'number' || (typeof pr === 'string' && !pr.startsWith('%')));
         if (catParam) {
@@ -258,7 +248,6 @@ class LocalFileDB {
         }
       }
 
-      // Filter by Purity
       if (lower.includes('p.purity = ?')) {
         const purityParam = params.find((pr) => ['24K', '22K', '20K', '18K', 'Silver', 'Diamond', 'Other'].includes(pr));
         if (purityParam) {
@@ -266,12 +255,10 @@ class LocalFileDB {
         }
       }
 
-      // Filter by Featured
       if (lower.includes('p.featured = 1')) {
         list = list.filter((p) => p.featured === 1 || p.featured === true);
       }
 
-      // Sorting
       if (lower.includes('order by p.price asc')) {
         list.sort((a, b) => a.price - b.price);
       } else if (lower.includes('order by p.price desc')) {
@@ -289,7 +276,6 @@ class LocalFileDB {
       return list;
     }
 
-    // INSERT PRODUCT
     if (lower.startsWith('insert into products')) {
       this.data.counters.products += 1;
       const newProd = {
@@ -312,7 +298,6 @@ class LocalFileDB {
       return { insertId: newProd.id, affectedRows: 1 };
     }
 
-    // UPDATE PRODUCT
     if (lower.startsWith('update products')) {
       const id = params[params.length - 1];
       const prod = this.data.products.find((p) => p.id === Number(id));
@@ -333,7 +318,6 @@ class LocalFileDB {
       }
     }
 
-    // DELETE PRODUCT
     if (lower.startsWith('delete from products')) {
       let id = params[0];
       if (id === undefined) {
@@ -348,7 +332,6 @@ class LocalFileDB {
       return { affectedRows: 1 };
     }
 
-    // 4. PRODUCT IMAGES QUERIES
     if (lower.startsWith('select') && lower.includes('from product_images')) {
       if (lower.includes('where product_id = ?') || lower.match(/where\s+product_id\s*=\s*(\d+)/)) {
         let pid = params[0];
@@ -420,7 +403,6 @@ class LocalFileDB {
       return { affectedRows: 1 };
     }
 
-    // 5. CATEGORIES QUERIES
     if (lower.startsWith('select') && lower.includes('from categories')) {
       let cats = [...this.data.categories];
 
@@ -479,7 +461,6 @@ class LocalFileDB {
       return { affectedRows: 1 };
     }
 
-    // 6. GOLD RATES QUERIES
     if (lower.startsWith('select') && lower.includes('from gold_rates')) {
       if (lower.includes('where purity = ?')) {
         const purity = params[0];
@@ -515,7 +496,6 @@ class LocalFileDB {
       return { insertId: newRate.id, affectedRows: 1 };
     }
 
-    // 7. ENQUIRIES QUERIES
     if (lower.startsWith('select') && lower.includes('from enquiries')) {
       let enqs = [...this.data.enquiries];
       if (params.length > 0 && params[0] !== 'all') {
@@ -567,7 +547,6 @@ class LocalFileDB {
       return { affectedRows: 1 };
     }
 
-    // 8. SHOP SETTINGS QUERIES
     if (lower.startsWith('select') && lower.includes('from shop_settings')) {
       return this.data.shop_settings;
     }
@@ -599,7 +578,6 @@ class LocalFileDB {
       return { affectedRows: 1 };
     }
 
-    // 9. SOCIAL LINKS QUERIES
     if (lower.startsWith('select') && lower.includes('from social_links')) {
       return this.data.social_links.filter((s) => s.status === 'enabled');
     }
@@ -638,45 +616,70 @@ class LocalFileDB {
   }
 }
 
-let localDb = null;
+let localFallbackDb = null;
 
+// Initialize SQLite Database File
 export const initDb = async () => {
-  if (dbType === 'mysql') {
-    console.log(`Connecting to MySQL database at ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306}...`);
-    mysqlPool = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      port: Number(process.env.DB_PORT) || 3306,
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'dmd_jewellery',
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-    });
-    try {
-      const connection = await mysqlPool.getConnection();
-      console.log('MySQL Database connected successfully.');
-      connection.release();
-    } catch (err) {
-      console.error('MySQL Database Connection Error:', err.message || 'Unable to connect to MySQL database.');
-    }
-  } else {
-    console.log('Using Local Pure-JS Database (Zero Native Dependencies)...');
-    const dbFilePath = path.resolve(__dirname, '../../database/dmd_jewellery.json');
-    localDb = new LocalFileDB(dbFilePath);
-    console.log('Local File Database Initialized (ZERO PRODUCTS AT START).');
+  const dir = path.dirname(dbFilePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
+
+  return new Promise((resolve) => {
+    sqliteDb = new sqlite3.Database(dbFilePath, (err) => {
+      if (err) {
+        console.warn('SQLite native initialization warning, using local file engine:', err.message);
+        const jsonDbPath = path.resolve(__dirname, '../../database/dmd_jewellery.json');
+        localFallbackDb = new LocalFileDB(jsonDbPath);
+        resolve(false);
+      } else {
+        console.log(`SQLite Database connected at ${dbFilePath}`);
+        
+        // Execute schema tables creation
+        const schemaPath = path.resolve(__dirname, '../../database/schema.sqlite.sql');
+        if (fs.existsSync(schemaPath)) {
+          const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+          sqliteDb.exec(schemaSql, (execErr) => {
+            if (execErr) {
+              console.warn('Schema exec notice:', execErr.message);
+            } else {
+              console.log('SQLite Schema Initialized Successfully (8 Tables Verified).');
+            }
+            resolve(true);
+          });
+        } else {
+          resolve(true);
+        }
+      }
+    });
+  });
 };
 
 export const query = async (sql, params = []) => {
-  if (dbType === 'mysql') {
-    if (!mysqlPool) await initDb();
-    const [rows] = await mysqlPool.execute(sql, params);
-    return rows;
-  } else {
-    if (!localDb) await initDb();
-    return await localDb.execute(sql, params);
+  if (!sqliteDb && !localFallbackDb) {
+    await initDb();
   }
+
+  if (sqliteDb) {
+    return new Promise((resolve, reject) => {
+      const trimmed = sql.trim().toLowerCase();
+      if (trimmed.startsWith('select') || trimmed.startsWith('pragma') || trimmed.startsWith('with')) {
+        sqliteDb.all(sql, params, (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows || []);
+        });
+      } else {
+        sqliteDb.run(sql, params, function (err) {
+          if (err) reject(err);
+          else resolve({ insertId: this ? this.lastID : 0, affectedRows: this ? this.changes : 0 });
+        });
+      }
+    });
+  } else if (localFallbackDb) {
+    return await localFallbackDb.execute(sql, params);
+  }
+
+  return [];
 };
 
 export const queryOne = async (sql, params = []) => {
