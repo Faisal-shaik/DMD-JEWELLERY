@@ -102,3 +102,22 @@ CREATE TABLE IF NOT EXISTS social_links (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- DEFAULT SEED DATA (ZERO PRODUCTS)
+INSERT OR IGNORE INTO categories (id, name, description, status) VALUES
+(1, 'Rings', 'Exquisite gold and diamond rings', 'enabled'),
+(2, 'Necklaces', 'Timeless gold necklaces and chokers', 'enabled'),
+(3, 'Chains', 'Crafted gold chains for men and women', 'enabled'),
+(4, 'Bangles', 'Traditional and contemporary bangles', 'enabled'),
+(5, 'Earrings', 'Stunning studs, hoops and drop earrings', 'enabled'),
+(6, 'Pendants', 'Elegant pendants and lockets', 'enabled'),
+(7, 'Bridal Jewellery', 'Grand wedding collections', 'enabled'),
+(8, 'Antique Jewellery', 'Heritage handcrafted jewellery', 'enabled');
+
+INSERT OR IGNORE INTO gold_rates (id, purity, rate, unit) VALUES
+(1, '24K', 75500.00, '10 grams'),
+(2, '22K', 69200.00, '10 grams'),
+(3, '18K', 56600.00, '10 grams');
+
+INSERT OR IGNORE INTO shop_settings (id, business_name, phone, whatsapp, email, address, city, state, pincode, maps_url, opening_time, closing_time, holiday, about_text, logo_url)
+VALUES (1, 'DMD JEWELLERY', '+91 9010322685', '9010322685', 'info@dmdjewellery.com', 'SHARAF BAZAR YEMMIGANUR, KURNOOL DIST', 'Yemmiganur', 'Andhra Pradesh', '518360', 'https://www.google.com/maps/search/?api=1&query=SHARAF+BAZAR+YEMMIGANUR+518360+KURNOOL+DIST', '10:00 AM', '08:30 PM', 'Saturday (Half Day)', 'DMD JEWELLERYS, owned by D MUDDASSIR, offers timeless elegance with beautifully crafted gold, diamond, and silver jewellery. Built on purity, craftsmanship, and customer trust.', '/dmd_logo.jpg');

@@ -653,6 +653,27 @@ export const initDb = async () => {
                   } else {
                     console.log('SQLite Schema Initialized Successfully (8 Tables Verified).');
                   }
+                  
+                  // Ensure default categories exist if table is empty
+                  sqliteDb.get('SELECT COUNT(*) as count FROM categories', [], (catErr, row) => {
+                    if (!catErr && row && row.count === 0) {
+                      const seedCatsSql = `
+                        INSERT OR IGNORE INTO categories (id, name, description, status) VALUES
+                        (1, 'Rings', 'Exquisite gold and diamond rings', 'enabled'),
+                        (2, 'Necklaces', 'Timeless gold necklaces and chokers', 'enabled'),
+                        (3, 'Chains', 'Crafted gold chains for men and women', 'enabled'),
+                        (4, 'Bangles', 'Traditional and contemporary bangles', 'enabled'),
+                        (5, 'Earrings', 'Stunning studs, hoops and drop earrings', 'enabled'),
+                        (6, 'Pendants', 'Elegant pendants and lockets', 'enabled'),
+                        (7, 'Bridal Jewellery', 'Grand wedding collections', 'enabled'),
+                        (8, 'Antique Jewellery', 'Heritage handcrafted jewellery', 'enabled');
+                      `;
+                      sqliteDb.exec(seedCatsSql, () => {
+                        console.log('Default Categories Seeded Successfully.');
+                      });
+                    }
+                  });
+
                   resolve(true);
                 });
               } catch (readErr) {
