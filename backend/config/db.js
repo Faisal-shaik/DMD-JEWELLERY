@@ -350,6 +350,10 @@ const convertSqlToPostgres = (sql) => {
 
 // Initialize Database Connection
 export const initDb = async () => {
+  if (pgPool && activeDbType === 'postgres') {
+    return true; // Single canonical pool already active
+  }
+
   const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SUPABASE_DB_URL;
   const dbTypeEnv = (process.env.DB_TYPE || '').toLowerCase();
   const isPostgresRequired = dbTypeEnv === 'postgres' || dbTypeEnv === 'postgresql' || process.env.NODE_ENV === 'production';
@@ -383,9 +387,11 @@ export const initDb = async () => {
           port: parsedConfig.port,
           database: parsedConfig.database,
           ssl: parsedConfig.host.includes('localhost') ? false : { rejectUnauthorized: false },
-          max: 20,
+          max: 10,
           idleTimeoutMillis: 30000,
           connectionTimeoutMillis: 10000,
+          keepAlive: true,
+          keepAliveInitialDelayMillis: 10000,
         });
 
         pgPool.on('error', (err) => {
@@ -429,6 +435,11 @@ export const initDb = async () => {
       console.warn('PostgreSQL connection skipped: DATABASE_URL is missing or invalid.');
       console.warn('Falling back to SQLite / File Database...');
     }
+  }
+
+  // Strictly prohibit SQLite in Production / PostgreSQL mode
+  if (isPostgresRequired) {
+    throw new Error('Production mode requires PostgreSQL. SQLite fallback is strictly disabled.');
   }
 
   // Mode B: SQLite Database File
