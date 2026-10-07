@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const isCloudinaryConfigured = () => {
+export const isCloudinaryConfigured = () => {
   return (
     !!process.env.CLOUDINARY_CLOUD_NAME &&
     !!process.env.CLOUDINARY_API_KEY &&
@@ -12,12 +12,20 @@ const isCloudinaryConfigured = () => {
   );
 };
 
+export const cloudinaryConfig = () => {
+  if (isCloudinaryConfigured()) {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+  }
+  return cloudinary;
+};
+
+// Initialize configuration on module load if environment variables are present
 if (isCloudinaryConfigured()) {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-  });
+  cloudinaryConfig();
 }
 
 /**
@@ -29,6 +37,9 @@ export const uploadImageToCloudinary = async (file) => {
 
   if (isCloudinaryConfigured()) {
     try {
+      // Ensure configuration is fresh
+      cloudinaryConfig();
+
       const result = await cloudinary.uploader.upload(file.path, {
         folder: 'dmd_jewellery/products',
         resource_type: 'image',
@@ -64,6 +75,7 @@ export const deleteImageFromCloudinary = async (imageUrl) => {
 
   if (imageUrl.includes('res.cloudinary.com')) {
     try {
+      cloudinaryConfig();
       // Extract public_id from Cloudinary URL (e.g., dmd_jewellery/products/abc123)
       const parts = imageUrl.split('/');
       const uploadIndex = parts.indexOf('upload');
@@ -81,7 +93,11 @@ export const deleteImageFromCloudinary = async (imageUrl) => {
   }
 };
 
+export { cloudinary };
+
 export default {
+  cloudinary,
+  cloudinaryConfig,
   isCloudinaryConfigured,
   uploadImageToCloudinary,
   deleteImageFromCloudinary,
