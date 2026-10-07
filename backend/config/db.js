@@ -23,6 +23,66 @@ const dbFilePath = path.resolve(
   process.env.SQLITE_DB_PATH || process.env.DB_FILE || './database/dmd_jewellery.sqlite'
 );
 
+/**
+ * Robustly parses PostgreSQL connection URLs.
+ * Correctly extracts full username (including Supabase pooler suffix), password
+ * (handling URL-encoded %40 or raw @), host, port, and database name.
+ */
+export const parsePgUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+
+  const urlStr = rawUrl.trim();
+  if (!urlStr.startsWith('postgres://') && !urlStr.startsWith('postgresql://')) {
+    return null;
+  }
+
+  const safeDecode = (val) => {
+    if (!val) return '';
+    try {
+      return decodeURIComponent(val);
+    } catch (e) {
+      return val;
+    }
+  };
+
+  let user = '';
+  let password = '';
+  let host = '';
+  let port = 5432;
+  let database = 'postgres';
+
+  try {
+    const parsed = new URL(urlStr);
+    user = safeDecode(parsed.username || '');
+    password = safeDecode(parsed.password || '');
+    host = parsed.hostname || '';
+    port = parsed.port ? parseInt(parsed.port, 10) : 5432;
+    const cleanPath = parsed.pathname ? parsed.pathname.replace(/^\//, '').split('?')[0] : '';
+    database = cleanPath || 'postgres';
+  } catch (err) {
+    // Regex fallback if un-encoded special characters exist in password
+    const match = urlStr.match(/^(?:postgres|postgresql):\/\/([^:]+):(.+)@([^:\/]+)(?::(\d+))?\/(?:([^?#]+))?/);
+    if (match) {
+      user = safeDecode(match[1]);
+      password = safeDecode(match[2]);
+      host = match[3];
+      port = match[4] ? parseInt(match[4], 10) : 5432;
+      database = match[5] || 'postgres';
+    } else {
+      return null;
+    }
+  }
+
+  // Automatic Username Correction for Supabase Connection Pooler
+  // If host is pooler.supabase.com and user is 'postgres', append the project ref
+  if (host.includes('pooler.supabase.com') && user === 'postgres') {
+    const projectRef = process.env.SUPABASE_PROJECT_REF || 'amuvnjcztyjcgfplghdv';
+    user = `postgres.${projectRef}`;
+  }
+
+  return { user, password, host, port, database };
+};
+
 // Pure JS File Database fallback (Zero Native Dependencies)
 class LocalFileDB {
   constructor(filePath) {
@@ -128,7 +188,6 @@ class LocalFileDB {
     const trimmed = sql.trim();
     const lower = trimmed.toLowerCase();
 
-    // PWA Analytics queries
     if (lower.startsWith('select count(*) as count from pwa_installations') || lower.startsWith('select count(*) as total from pwa_installations')) {
       return [{ count: this.data.pwa_installations.length, total: this.data.pwa_installations.length }];
     }
@@ -151,14 +210,6 @@ class LocalFileDB {
       this.data.pwa_installations.push(newInst);
       this.save();
       return { insertId: newInst.id, affectedRows: 1 };
-    }
-    if (lower.startsWith('update pwa_installations')) {
-      const inst = this.data.pwa_installations.find((p) => p.installation_id === params[0]);
-      if (inst) {
-        inst.last_seen_at = new Date().toISOString();
-        this.save();
-        return { affectedRows: 1 };
-      }
     }
 
     if (lower.startsWith('select count(*) as count from products') || lower.startsWith('select count(*) as total from products')) {
@@ -198,52 +249,26 @@ class LocalFileDB {
       return { insertId: newUser.id, affectedRows: 1 };
     }
 
-    if (lower.startsWith('update users')) {
-      if (lower.includes('password_hash = ?')) {
-        const id = params[params.length - 1];
-        const user = this.data.users.find((u) => u.id === Number(id));
-        if (user) {
-          if (params.length === 3) {
-            user.name = params[0];
-            user.password_hash = params[1];
-          } else {
-            user.password_hash = params[0];
-          }
-          user.updated_at = new Date().toISOString();
-          this.save();
-          return { affectedRows: 1 };
-        }
-      }
-    }
-
     if (lower.startsWith('select') && lower.includes('from products')) {
       let list = [...this.data.products];
-
       list = list.map((p) => {
         const cat = this.data.categories.find((c) => c.id === p.category_id);
         const images = this.data.product_images.filter((img) => img.product_id === p.id);
         const primaryImg = images.find((i) => i.is_primary === 1)?.image_url || images[0]?.image_url || null;
-        return {
-          ...p,
-          category_name: cat ? cat.name : null,
-          primary_image: primaryImg,
-        };
+        return { ...p, category_name: cat ? cat.name : null, primary_image: primaryImg };
       });
 
       if (lower.includes('where p.id = ?') || lower.includes('where id = ?')) {
         const item = list.find((p) => p.id === Number(params[0]));
         return item ? [item] : [];
       }
-
       if (lower.includes('where p.product_code = ?') || lower.includes('where product_code = ?')) {
         const item = list.find((p) => String(p.product_code).toLowerCase() === String(params[0]).toLowerCase());
         return item ? [item] : [];
       }
-
       if (lower.includes("p.status = 'published'") || lower.includes("status = 'published'")) {
         list = list.filter((p) => p.status === 'Published');
       }
-
       return list;
     }
 
@@ -269,26 +294,6 @@ class LocalFileDB {
       return { insertId: newProd.id, affectedRows: 1 };
     }
 
-    if (lower.startsWith('update products')) {
-      const id = params[params.length - 1];
-      const prod = this.data.products.find((p) => p.id === Number(id));
-      if (prod) {
-        prod.product_code = params[0];
-        prod.name = params[1];
-        prod.category_id = params[2] ? Number(params[2]) : null;
-        prod.price = Number(params[3]) || 0;
-        prod.purity = params[4];
-        prod.weight = Number(params[5]) || 0;
-        prod.description = params[6] || '';
-        prod.availability = params[7] || 'In Stock';
-        prod.featured = params[8] === 1 || params[8] === true ? 1 : 0;
-        prod.status = params[9] || 'Published';
-        prod.updated_at = new Date().toISOString();
-        this.save();
-        return { affectedRows: 1 };
-      }
-    }
-
     if (lower.startsWith('delete from products')) {
       const id = params[0];
       if (id !== undefined) {
@@ -299,48 +304,8 @@ class LocalFileDB {
       return { affectedRows: 1 };
     }
 
-    if (lower.startsWith('select') && lower.includes('from product_images')) {
-      if (lower.includes('where product_id = ?')) {
-        return this.data.product_images.filter((i) => i.product_id === Number(params[0]));
-      }
-      if (lower.includes('where id = ?')) {
-        const img = this.data.product_images.find((i) => i.id === Number(params[0]));
-        return img ? [img] : [];
-      }
-      return this.data.product_images;
-    }
-
-    if (lower.startsWith('insert into product_images')) {
-      this.data.counters.product_images += 1;
-      const newImg = {
-        id: this.data.counters.product_images,
-        product_id: Number(params[0]),
-        image_url: params[1],
-        is_primary: params[2] ? 1 : 0,
-        display_order: params[3] || 0,
-        created_at: new Date().toISOString(),
-      };
-      this.data.product_images.push(newImg);
-      this.save();
-      return { insertId: newImg.id, affectedRows: 1 };
-    }
-
-    if (lower.startsWith('delete from product_images')) {
-      const id = params[0];
-      if (lower.includes('where product_id')) {
-        this.data.product_images = this.data.product_images.filter((i) => i.product_id !== Number(id));
-      } else {
-        this.data.product_images = this.data.product_images.filter((i) => i.id !== Number(id));
-      }
-      this.save();
-      return { affectedRows: 1 };
-    }
-
     if (lower.startsWith('select') && lower.includes('from categories')) {
-      return this.data.categories.map((c) => ({
-        ...c,
-        product_count: this.data.products.filter((p) => p.category_id === c.id && p.status === 'Published').length,
-      }));
+      return this.data.categories;
     }
 
     if (lower.startsWith('select') && lower.includes('from gold_rates')) {
@@ -356,7 +321,7 @@ class LocalFileDB {
     }
 
     if (lower.startsWith('select') && lower.includes('from social_links')) {
-      return this.data.social_links.filter((s) => s.status === 'enabled');
+      return this.data.social_links;
     }
 
     return [];
@@ -375,16 +340,11 @@ const initFallbackJsonDb = () => {
 const convertSqlToPostgres = (sql) => {
   let paramIndex = 1;
   let pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
-  
-  // Replace SQLite specific functions with PostgreSQL equivalents if needed
   pgSql = pgSql.replace(/DATETIME/gi, 'TIMESTAMP');
-  
-  // For INSERT queries without RETURNING, append RETURNING id to get inserted ID
   const trimmedLower = pgSql.trim().toLowerCase();
   if (trimmedLower.startsWith('insert into') && !trimmedLower.includes('returning')) {
     pgSql += ' RETURNING id';
   }
-
   return pgSql;
 };
 
@@ -392,43 +352,81 @@ const convertSqlToPostgres = (sql) => {
 export const initDb = async () => {
   const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.SUPABASE_DB_URL;
   const dbTypeEnv = (process.env.DB_TYPE || '').toLowerCase();
+  const isPostgresRequired = dbTypeEnv === 'postgres' || dbTypeEnv === 'postgresql' || process.env.NODE_ENV === 'production';
 
-  // Mode A: PostgreSQL (Production Cloud Database: Supabase / Neon / Render Postgres)
-  if (dbUrl || dbTypeEnv === 'postgres' || dbTypeEnv === 'postgresql') {
-    try {
-      console.log('Connecting to Production PostgreSQL Database...');
-      pgPool = new Pool({
-        connectionString: dbUrl,
-        ssl: dbUrl && dbUrl.includes('localhost') ? false : { rejectUnauthorized: false },
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-      });
+  // Mode A: PostgreSQL Connection
+  if (dbUrl || isPostgresRequired) {
+    const parsedConfig = parsePgUrl(dbUrl);
 
-      pgPool.on('error', (err) => {
-        console.error('Unexpected PostgreSQL Pool Error:', err.message);
-      });
+    console.log('==================================================');
+    console.log('CONNECTING TO PRODUCTION POSTGRESQL DATABASE');
+    console.log(`DB_TYPE              : ${process.env.DB_TYPE || 'postgres'}`);
+    console.log(`DATABASE_URL Exists  : ${!!dbUrl}`);
+    if (parsedConfig) {
+      console.log(`PostgreSQL Host      : ${parsedConfig.host}`);
+      console.log(`PostgreSQL Port      : ${parsedConfig.port}`);
+      console.log(`PostgreSQL Database  : ${parsedConfig.database}`);
+      console.log(`PostgreSQL User      : ${parsedConfig.user}`);
+      console.log(`Password Exists      : ${!!parsedConfig.password}`);
+      console.log(`Password Length      : ${parsedConfig.password ? parsedConfig.password.length : 0}`);
+    } else {
+      console.warn('PostgreSQL Warning   : DATABASE_URL missing or could not be parsed.');
+    }
+    console.log('==================================================');
 
-      // Test Connection & Initialize PostgreSQL Schema
-      const client = await pgPool.connect();
+    if (parsedConfig) {
       try {
-        console.log('PostgreSQL Connection Established Successfully.');
-        activeDbType = 'postgres';
+        pgPool = new Pool({
+          user: parsedConfig.user,
+          password: parsedConfig.password,
+          host: parsedConfig.host,
+          port: parsedConfig.port,
+          database: parsedConfig.database,
+          ssl: parsedConfig.host.includes('localhost') ? false : { rejectUnauthorized: false },
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 10000,
+        });
 
-        // Load & Run PostgreSQL Schema
-        const schemaPath = path.resolve(__dirname, '../../database/schema.postgres.sql');
-        if (fs.existsSync(schemaPath)) {
-          const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-          await client.query(schemaSql);
-          console.log('PostgreSQL Database Schema Initialized Successfully.');
+        pgPool.on('error', (err) => {
+          console.error('Unexpected PostgreSQL Pool Error:', err.message);
+        });
+
+        // Test Connection & Initialize Schema
+        const client = await pgPool.connect();
+        try {
+          console.log('PostgreSQL Connection Established Successfully.');
+          activeDbType = 'postgres';
+
+          const schemaPath = path.resolve(__dirname, '../../database/schema.postgres.sql');
+          if (fs.existsSync(schemaPath)) {
+            const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+            await client.query(schemaSql);
+            console.log('PostgreSQL Database Schema Verified & Ready.');
+          }
+
+          return true;
+        } finally {
+          client.release();
         }
-
-        return true;
-      } finally {
-        client.release();
+      } catch (pgError) {
+        console.error('PostgreSQL Connection Error:', pgError.message);
+        if (isPostgresRequired) {
+          console.error('==================================================');
+          console.error('FATAL PRODUCTION ERROR: PostgreSQL Connection Failed.');
+          console.error('Production / Postgres mode is active. Silent fallback to SQLite is DISABLED.');
+          console.error('Error Details:', pgError.message);
+          console.error('==================================================');
+          throw new Error(`PostgreSQL Connection Failed: ${pgError.message}`);
+        }
+        console.warn('Falling back to SQLite / File Database (Development Mode)...');
       }
-    } catch (pgError) {
-      console.error('PostgreSQL Connection Notice:', pgError.message);
+    } else {
+      if (isPostgresRequired) {
+        console.error('FATAL: DATABASE_URL is missing or invalid for PostgreSQL mode.');
+        throw new Error('DATABASE_URL is missing or invalid for PostgreSQL mode.');
+      }
+      console.warn('PostgreSQL connection skipped: DATABASE_URL is missing or invalid.');
       console.warn('Falling back to SQLite / File Database...');
     }
   }
@@ -478,13 +476,12 @@ export const initDb = async () => {
   }
 };
 
-// Generic Database Query Runner (Handles PostgreSQL, SQLite, and File DB)
+// Generic Database Query Runner
 export const query = async (sql, params = []) => {
   if (!pgPool && !sqliteDb && !localFallbackDb) {
     await initDb();
   }
 
-  // Handle PostgreSQL Queries
   if (pgPool && activeDbType === 'postgres') {
     try {
       const pgSql = convertSqlToPostgres(sql);
@@ -505,9 +502,8 @@ export const query = async (sql, params = []) => {
     }
   }
 
-  // Handle SQLite Queries
   if (sqliteDb && activeDbType === 'sqlite') {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const trimmed = sql.trim().toLowerCase();
       if (trimmed.startsWith('select') || trimmed.startsWith('pragma') || trimmed.startsWith('with')) {
         sqliteDb.all(sql, params, (err, rows) => {
@@ -531,7 +527,6 @@ export const query = async (sql, params = []) => {
     });
   }
 
-  // Handle Local File DB Fallback
   if (localFallbackDb) {
     return await localFallbackDb.execute(sql, params);
   }
@@ -566,4 +561,4 @@ export const testDbConnection = async () => {
   }
 };
 
-export default { query, queryOne, initDb, getActiveDbType, testDbConnection };
+export default { query, queryOne, initDb, getActiveDbType, testDbConnection, parsePgUrl };

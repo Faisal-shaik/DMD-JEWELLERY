@@ -4,19 +4,26 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
+import { parsePgUrl } from '../config/db.js';
+
 dotenv.config();
 
 const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const cfg = parsePgUrl(dbUrl);
 
-if (!dbUrl) {
-  console.error('ERROR: DATABASE_URL missing.');
+if (!cfg) {
+  console.error('ERROR: DATABASE_URL missing or could not be parsed.');
   process.exit(1);
 }
 
 const getPool = () =>
   new pg.Pool({
-    connectionString: dbUrl,
-    ssl: dbUrl.includes('localhost') ? false : { rejectUnauthorized: false },
+    user: cfg.user,
+    password: cfg.password,
+    host: cfg.host,
+    port: cfg.port,
+    database: cfg.database,
+    ssl: cfg.host.includes('localhost') ? false : { rejectUnauthorized: false },
   });
 
 async function runTests() {
