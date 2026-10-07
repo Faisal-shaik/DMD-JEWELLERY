@@ -5,13 +5,15 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 
-import { initDb, query } from './config/db.js';
+import { initDb, query, testDbConnection, getActiveDbType } from './config/db.js';
+import { isCloudinaryConfigured } from './services/cloudinaryService.js';
 import authRoutes from './routes/authRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
 import goldRateRoutes from './routes/goldRateRoutes.js';
 import enquiryRoutes from './routes/enquiryRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 
 dotenv.config();
 
@@ -64,8 +66,8 @@ app.get('/robots.txt', (req, res) => {
 app.get('/sitemap.xml', async (req, res) => {
   try {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const products = await query('SELECT id, updated_at FROM products WHERE status = "Published"');
-    const categories = await query('SELECT name FROM categories WHERE status = "enabled"');
+    const products = await query("SELECT id, updated_at FROM products WHERE status = 'Published'");
+    const categories = await query("SELECT name FROM categories WHERE status = 'enabled'");
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
@@ -93,12 +95,21 @@ app.get('/sitemap.xml', async (req, res) => {
   }
 });
 
-// Cloud Hosting Health Check Endpoint
-app.get('/api/health', (req, res) => {
+// Cloud Hosting Health Check Endpoint (Includes DB & Cloudinary Status)
+app.get('/api/health', async (req, res) => {
+  const dbStatus = await testDbConnection();
   res.json({
     success: true,
     status: 'ok',
     timestamp: new Date().toISOString(),
+    database: {
+      connected: dbStatus.connected,
+      type: dbStatus.type,
+      isPersistent: dbStatus.isPersistent,
+    },
+    cloudinary: {
+      configured: isCloudinaryConfigured(),
+    },
   });
 });
 
@@ -109,6 +120,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/gold-rates', goldRateRoutes);
 app.use('/api/enquiries', enquiryRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Serve Frontend Build in Production
 const frontendDistPath = path.resolve(__dirname, '../frontend/dist');
@@ -177,7 +189,7 @@ const startServer = async () => {
       console.log(`Mobile Access:  http://${localIp}:${PORT}`);
       console.log(`Admin Panel:    http://${localIp}:${PORT}/admin`);
       console.log(`Environment:    ${process.env.NODE_ENV || 'development'}`);
-      console.log(`Database Type:  ${process.env.DB_TYPE || 'sqlite'}`);
+      console.log(`Database Type:  ${getActiveDbType()}`);
       console.log(`Live Gold Rate: ENABLED`);
       console.log(`==================================================`);
     });

@@ -1,5 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Smartphone, Check } from 'lucide-react';
+import { logPWAInstall } from '../services/api';
+
+const getOrGenerateInstallId = () => {
+  let id = localStorage.getItem('dmd_pwa_install_id');
+  if (!id) {
+    id = `dmd_inst_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    localStorage.setItem('dmd_pwa_install_id', id);
+  }
+  return id;
+};
+
+const sendInstallEvent = async () => {
+  try {
+    const installId = getOrGenerateInstallId();
+    await logPWAInstall({ installation_id: installId, platform: 'web' });
+  } catch (err) {
+    console.warn('PWA install log notice:', err.message);
+  }
+};
 
 const InstallPWAPrompt = () => {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -34,6 +53,7 @@ const InstallPWAPrompt = () => {
     const handleAppInstalled = () => {
       setDeferredPrompt(null);
       setInstalledSuccess(true);
+      sendInstallEvent();
       setTimeout(() => setInstalledSuccess(false), 5000);
     };
 
@@ -55,6 +75,7 @@ const InstallPWAPrompt = () => {
     if (outcome === 'accepted') {
       console.log('User accepted PWA installation');
       setDeferredPrompt(null);
+      sendInstallEvent();
     } else {
       console.log('User dismissed PWA installation');
     }

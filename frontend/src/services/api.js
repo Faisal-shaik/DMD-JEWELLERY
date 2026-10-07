@@ -55,4 +55,8 @@ export const logoutAdmin = () => API.post('/auth/logout');
 export const changeAdminPassword = (data) => API.post('/auth/change-password', data);
 export const fetchMe = () => API.get('/auth/me');
 
+// Analytics API
+export const logPWAInstall = (data) => API.post('/analytics/pwa-install', data);
+export const fetchPWAStats = () => API.get('/analytics/pwa-stats');
+
 export default API;

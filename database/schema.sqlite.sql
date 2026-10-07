@@ -103,6 +103,14 @@ CREATE TABLE IF NOT EXISTS social_links (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS pwa_installations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  installation_id TEXT NOT NULL UNIQUE,
+  platform TEXT DEFAULT 'web',
+  installed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- DEFAULT SEED DATA (ZERO PRODUCTS)
 INSERT OR IGNORE INTO categories (id, name, description, status) VALUES
 (1, 'Rings', 'Exquisite gold and diamond rings', 'enabled'),

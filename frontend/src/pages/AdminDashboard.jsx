@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchProducts, fetchCategories, fetchEnquiries, updateEnquiryStatus } from '../services/api';
-import { Package, FolderTree, MessageSquare, CheckCircle, AlertTriangle, Plus, Eye, ArrowRight } from 'lucide-react';
+import { fetchProducts, fetchCategories, fetchEnquiries, updateEnquiryStatus, fetchPWAStats, fetchGoldRates } from '../services/api';
+import { Package, FolderTree, MessageSquare, CheckCircle, AlertTriangle, Plus, Eye, ArrowRight, Smartphone, TrendingUp } from 'lucide-react';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -11,6 +11,11 @@ const AdminDashboard = () => {
     totalCategories: 0,
     totalEnquiries: 0,
     newEnquiries: 0,
+    pwaTotal: 0,
+    pwaToday: 0,
+    pwaWeek: 0,
+    pwaMonth: 0,
+    goldRatesCount: 0,
   });
 
   const [recentProducts, setRecentProducts] = useState([]);
@@ -24,10 +29,12 @@ const AdminDashboard = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [prodRes, catRes, enqRes] = await Promise.all([
+      const [prodRes, catRes, enqRes, pwaRes, goldRes] = await Promise.all([
         fetchProducts({ isAdmin: 'true' }),
         fetchCategories({ status: 'all' }),
         fetchEnquiries({ status: 'all' }),
+        fetchPWAStats().catch(() => ({ data: { success: false } })),
+        fetchGoldRates().catch(() => ({ data: { success: false } })),
       ]);
 
       if (prodRes.data.success) {
@@ -54,6 +61,21 @@ const AdminDashboard = () => {
           totalEnquiries: enqs.length,
           newEnquiries: enqs.filter((e) => e.status === 'New').length,
         }));
+      }
+
+      if (pwaRes.data?.success && pwaRes.data?.stats) {
+        const s = pwaRes.data.stats;
+        setStats((prev) => ({
+          ...prev,
+          pwaTotal: s.totalInstallations || 0,
+          pwaToday: s.todayInstallations || 0,
+          pwaWeek: s.thisWeekInstallations || 0,
+          pwaMonth: s.thisMonthInstallations || 0,
+        }));
+      }
+
+      if (goldRes.data?.success && goldRes.data?.rates) {
+        setStats((prev) => ({ ...prev, goldRatesCount: goldRes.data.rates.length }));
       }
     } catch (err) {
       console.warn('Dashboard data fetch error:', err);
@@ -110,27 +132,7 @@ const AdminDashboard = () => {
             <Package className="w-5 h-5 text-gold-400" />
           </div>
           <p className="font-serif text-3xl font-bold text-white">{stats.totalProducts}</p>
-          <span className="text-[10px] text-gold-400">Catalogue Database</span>
-        </div>
-
-        {/* PUBLISHED PRODUCTS */}
-        <div className="bg-dark-800 p-5 rounded-2xl border border-gold-400/20 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Published</span>
-            <CheckCircle className="w-5 h-5 text-emerald-400" />
-          </div>
-          <p className="font-serif text-3xl font-bold text-emerald-400">{stats.publishedProducts}</p>
-          <span className="text-[10px] text-gray-400">Live on Customer Website</span>
-        </div>
-
-        {/* OUT OF STOCK */}
-        <div className="bg-dark-800 p-5 rounded-2xl border border-gold-400/20 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Out of Stock</span>
-            <AlertTriangle className="w-5 h-5 text-rose-400" />
-          </div>
-          <p className="font-serif text-3xl font-bold text-rose-400">{stats.outOfStockProducts}</p>
-          <span className="text-[10px] text-gray-400">Requires Stock Update</span>
+          <span className="text-[10px] text-gold-400">{stats.publishedProducts} Published Live</span>
         </div>
 
         {/* CATEGORIES */}
@@ -146,11 +148,33 @@ const AdminDashboard = () => {
         {/* TOTAL ENQUIRIES */}
         <div className="bg-dark-800 p-5 rounded-2xl border border-gold-400/20 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Total Enquiries</span>
+            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Enquiries</span>
             <MessageSquare className="w-5 h-5 text-amber-400" />
           </div>
           <p className="font-serif text-3xl font-bold text-amber-400">{stats.totalEnquiries}</p>
           <span className="text-[10px] text-amber-300 font-semibold">{stats.newEnquiries} New Messages</span>
+        </div>
+
+        {/* GOLD RATES */}
+        <div className="bg-dark-800 p-5 rounded-2xl border border-gold-400/20 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Gold Rates</span>
+            <TrendingUp className="w-5 h-5 text-emerald-400" />
+          </div>
+          <p className="font-serif text-3xl font-bold text-emerald-400">{stats.goldRatesCount}</p>
+          <span className="text-[10px] text-emerald-300 font-semibold">Live Market Rates</span>
+        </div>
+
+        {/* PWA INSTALLATIONS */}
+        <div className="bg-dark-800 p-5 rounded-2xl border border-gold-400/20 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">PWA Installs</span>
+            <Smartphone className="w-5 h-5 text-sky-400" />
+          </div>
+          <p className="font-serif text-3xl font-bold text-sky-400">{stats.pwaTotal}</p>
+          <span className="text-[10px] text-sky-300 font-medium">
+            Today: {stats.pwaToday} | 30d: {stats.pwaMonth}
+          </span>
         </div>
       </div>
 
